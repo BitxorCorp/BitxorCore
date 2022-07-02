@@ -1,6 +1,5 @@
 # Bitxorcore
 
-[![docs](badges/docs--green.svg)](https://docs.bitxor.org)
 
 Bitxor-based networks rely on nodes to provide a trustless, high-performance, and secure blockchain platform.
 
