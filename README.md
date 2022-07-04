@@ -52,12 +52,6 @@ To run a test net node, follow [this guide](https://docs.bitxor.org/guides/netwo
 
 At the time of writing, the main public network has not been launched. Follow the latest updates about the public launch on the [Forum](https://forum.bitxor.org).
 
-### Private Test Network
-
-With Bitxor, businesses can launch and extend private networks by developing custom plugins and extensions at the protocol level. The package [Service Bootstrap] contains the necessary setup scripts to deploy a network for testing and development purposes with just one command.
-
-To run a private testnet, follow [this guide](https://docs.bitxor.org/guides/network/creating-a-private-testnet.html).
-
 ## Contributing
 
 Before contributing please [read this](CONTRIBUTING.md).
