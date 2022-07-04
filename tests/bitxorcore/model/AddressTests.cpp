@@ -1,0 +1,325 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#include "bitxorcore/model/Address.h"
+#include "bitxorcore/model/NetworkIdentifier.h"
+#include "bitxorcore/utils/Casting.h"
+#include "bitxorcore/utils/HexParser.h"
+#include "tests/TestHarness.h"
+
+namespace bitxorcore { namespace model {
+
+#define TEST_CLASS AddressTests
+
+	namespace {
+		constexpr auto Network_Identifier = NetworkIdentifier::Testnet;
+		constexpr auto Encoded_Address = "TESPBNF5DF5TPTZ5AQ6TQBFQDJ5H7RWV3RP6NOI";
+		constexpr auto Decoded_Address = "9924F0B4BD197B37CF3D043D3804B01A7A7FC6D5DC5FE6B9";
+		constexpr auto Public_Key = "02234D4133D142627AC7735E59DCCEC00AA79893CD9E500688E6FAF161EB9289";
+
+		void AssertCannotCreateAddress(const std::string& encoded) {
+			// Act + Assert:
+			EXPECT_FALSE(IsValidEncodedAddress(encoded, Network_Identifier)) << encoded;
+			EXPECT_THROW(StringToAddress(encoded), bitxorcore_runtime_error) << encoded;
+		}
+	}
+
+	// region StringToAddress
+
+	TEST(TEST_CLASS, CanCreateAddressFromValidEncodedAddress) {
+		// Arrange:
+		auto encoded = Encoded_Address;
+		auto expectedDecoded = utils::ParseByteArray<Address>(Decoded_Address);
+
+		// Act:
+		auto decoded = StringToAddress(encoded);
+
+		// Assert:
+		EXPECT_TRUE(IsValidAddress(decoded, Network_Identifier));
+		EXPECT_EQ(expectedDecoded, decoded);
+	}
+
+	TEST(TEST_CLASS, CannotCreateAddressFromEncodedStringWithWrongLength) {
+		AssertCannotCreateAddress(std::string(Encoded_Address) + "ABCDEFGH");
+	}
+
+	TEST(TEST_CLASS, CannotCreateAddressFromInvalidEncodedString) {
+		// Arrange:
+		auto encoded = std::string(Encoded_Address);
+
+		// Act + Assert: set invalid chars
+		for (auto ch : { '(', '1', '?' }) {
+			encoded[4] = ch;
+			AssertCannotCreateAddress(encoded);
+		}
+	}
+
+	// endregion
+
+	// region AddressToString / PublicKeyToAddressString
+
+	TEST(TEST_CLASS, CanCreateEncodedAddressFromAddress) {
+		// Arrange:
+		auto decodedHex = Decoded_Address;
+		auto expected = Encoded_Address;
+
+		// Act:
+		auto encoded = AddressToString(utils::ParseByteArray<Address>(decodedHex));
+
+		// Assert:
+		EXPECT_TRUE(IsValidEncodedAddress(encoded, Network_Identifier));
+		EXPECT_EQ(expected, encoded);
+	}
+
+	TEST(TEST_CLASS, CanCreateEncodedAddressFromPublicKey) {
+		// Arrange:
+		auto expected = Encoded_Address;
+		auto publicKey = utils::ParseByteArray<Key>(Public_Key);
+		auto networkIdentifier = NetworkIdentifier::Testnet;
+
+		// Act:
+		auto encoded = PublicKeyToAddressString(publicKey, networkIdentifier);
+
+		// Assert:
+		EXPECT_TRUE(IsValidEncodedAddress(encoded, Network_Identifier));
+		EXPECT_EQ(expected, encoded);
+	}
+
+	// endregion
+
+	// region PublicKeyToAddress
+
+	TEST(TEST_CLASS, CanCreateAddressFromPublicKeyForWellKnownNetwork) {
+		// Arrange:
+		auto expected = utils::ParseByteArray<Address>("9924F0B4BD197B37CF3D043D3804B01A7A7FC6D5DC5FE6B9");
+		auto publicKey = utils::ParseByteArray<Key>(Public_Key);
+		auto networkIdentifier = NetworkIdentifier::Testnet;
+
+		// Act:
+		auto decoded = PublicKeyToAddress(publicKey, networkIdentifier);
+
+		// Assert:
+		EXPECT_TRUE(IsValidAddress(decoded, NetworkIdentifier::Testnet));
+		EXPECT_EQ(decoded[0], utils::to_underlying_type(networkIdentifier));
+		EXPECT_EQ(expected, decoded);
+	}
+
+	TEST(TEST_CLASS, CanCreateAddressFromPublicKeyForCustomNetwork) {
+		// Arrange:
+		auto expected = utils::ParseByteArray<Address>("7B006BAE19204CA592E800B66C381CF8ABC3B6B66A855D15");
+		auto publicKey = utils::ParseByteArray<Key>(Public_Key);
+		auto networkIdentifier = static_cast<NetworkIdentifier>(123);
+
+		// Act:
+		auto decoded = PublicKeyToAddress(publicKey, networkIdentifier);
+
+		// Assert:
+		EXPECT_TRUE(IsValidAddress(decoded, networkIdentifier));
+		EXPECT_EQ(decoded[0], utils::to_underlying_type(networkIdentifier));
+		EXPECT_EQ(expected, decoded);
+	}
+
+	TEST(TEST_CLASS, AddressCalculationIsDeterministic) {
+		// Arrange:
+		auto publicKey = utils::ParseByteArray<Key>(Public_Key);
+
+		// Act:
+		auto decoded1 = PublicKeyToAddress(publicKey, Network_Identifier);
+		auto decoded2 = PublicKeyToAddress(publicKey, Network_Identifier);
+
+		// Assert:
+		EXPECT_TRUE(IsValidAddress(decoded1, Network_Identifier));
+		EXPECT_EQ(decoded1, decoded2);
+	}
+
+	TEST(TEST_CLASS, DifferentPublicKeysResultInDifferentAddresses) {
+		// Arrange:
+		auto pubKey1 = test::GenerateRandomByteArray<Key>();
+		auto pubKey2 = test::GenerateRandomByteArray<Key>();
+
+		// Act:
+		auto decoded1 = PublicKeyToAddress(pubKey1, Network_Identifier);
+		auto decoded2 = PublicKeyToAddress(pubKey2, Network_Identifier);
+
+		// Assert:
+		EXPECT_TRUE(IsValidAddress(decoded1, Network_Identifier));
+		EXPECT_TRUE(IsValidAddress(decoded2, Network_Identifier));
+		EXPECT_NE(decoded1, decoded2);
+	}
+
+	TEST(TEST_CLASS, DifferentNetworksResultInDifferentAddresses) {
+		// Arrange:
+		auto pubKey = test::GenerateRandomByteArray<Key>();
+
+		// Act:
+		auto decoded1 = PublicKeyToAddress(pubKey, NetworkIdentifier::Mainnet);
+		auto decoded2 = PublicKeyToAddress(pubKey, NetworkIdentifier::Testnet);
+
+		// Assert:
+		EXPECT_TRUE(IsValidAddress(decoded1, NetworkIdentifier::Mainnet));
+		EXPECT_TRUE(IsValidAddress(decoded2, NetworkIdentifier::Testnet));
+		EXPECT_NE(decoded1, decoded2);
+	}
+
+	// endregion
+
+	// region IsValidAddress
+
+	TEST(TEST_CLASS, IsValidAddressReturnsTrueForValidAddress) {
+		// Arrange:
+		auto decoded = utils::ParseByteArray<Address>(Decoded_Address);
+
+		// Assert:
+		EXPECT_TRUE(IsValidAddress(decoded, Network_Identifier));
+	}
+
+	TEST(TEST_CLASS, IsValidAddressReturnsFalseForWrongNetworkAddress) {
+		// Arrange:
+		auto decoded = utils::ParseByteArray<Address>(Decoded_Address);
+
+		// Assert:
+		EXPECT_FALSE(IsValidAddress(decoded, static_cast<NetworkIdentifier>(123)));
+	}
+
+	TEST(TEST_CLASS, IsValidAddressReturnsFalseForAddressWithInvalidChecksum) {
+		// Arrange:
+		auto decoded = utils::ParseByteArray<Address>(Decoded_Address);
+		decoded[Address::Size - 1] ^= 0xFF; // ruin checksum
+
+		// Assert:
+		EXPECT_FALSE(IsValidAddress(decoded, Network_Identifier));
+	}
+
+	TEST(TEST_CLASS, IsValidAddressReturnsFalseForAddressWithInvalidHash) {
+		// Arrange:
+		auto decoded = utils::ParseByteArray<Address>(Decoded_Address);
+		decoded[5] ^= 0xFF; // ruin ripemd160 hash
+
+		// Assert:
+		EXPECT_FALSE(IsValidAddress(decoded, Network_Identifier));
+	}
+
+	// endregion
+
+	// region IsValidEncodedAddress
+
+	TEST(TEST_CLASS, IsValidEncodedAddressReturnsTrueForValidEncodedAddress) {
+		// Arrange:
+		auto encoded = Encoded_Address;
+
+		// Assert:
+		EXPECT_TRUE(IsValidEncodedAddress(encoded, Network_Identifier));
+	}
+
+	TEST(TEST_CLASS, IsValidEncodedAddressReturnsFalseForWrongNetworkAddress) {
+		// Arrange:
+		auto encoded = Encoded_Address;
+
+		// Assert:
+		EXPECT_FALSE(IsValidEncodedAddress(encoded, static_cast<NetworkIdentifier>(123)));
+	}
+
+	namespace {
+		void AssertInvalidEncodedAddress(const consumer<std::string&>& mutate) {
+			// Arrange:
+			auto encoded = std::string(Encoded_Address);
+			mutate(encoded);
+
+			// Assert:
+			EXPECT_FALSE(IsValidEncodedAddress(encoded, Network_Identifier)) << encoded;
+		}
+	}
+
+	TEST(TEST_CLASS, IsValidEncodedAddressReturnsFalseForInvalidEncodedAddress) {
+		// Arrange: corrupt checksum
+		AssertInvalidEncodedAddress([](auto& encoded) { ++encoded[encoded.size() / 2]; });
+
+		// - nonzero trail padding byte
+		AssertInvalidEncodedAddress([](auto& encoded) { ++encoded.back(); });
+	}
+
+	TEST(TEST_CLASS, IsValidEncodedAddressReturnsFalseForEncodedAddressWithWrongLength) {
+		// Arrange: add additional characters to the end of a valid address
+		AssertInvalidEncodedAddress([](auto& encoded) { encoded += "ABC"; });
+	}
+
+	TEST(TEST_CLASS, IsValidEncodedAddressReturnsFalseForEncodedStringWithLeadingOrTrailingWhiteSpace) {
+		AssertInvalidEncodedAddress([](auto& encoded) { encoded = "   \t    " + encoded; });
+		AssertInvalidEncodedAddress([](auto& encoded) { encoded = encoded + "   \t    "; });
+		AssertInvalidEncodedAddress([](auto& encoded) { encoded = "   \t    " + encoded + "   \t    "; });
+	}
+
+	// endregion
+
+	// region TryParseValue
+
+	TEST(TEST_CLASS, TryParseValueCanParseValidEncodedAddress) {
+		// Arrange:
+		auto encoded = Encoded_Address;
+		Address decoded;
+
+		// Act:
+		auto result = TryParseValue(encoded, decoded);
+
+		// Assert:
+		EXPECT_TRUE(result);
+		EXPECT_EQ(utils::ParseByteArray<Address>(Decoded_Address), decoded);
+	}
+
+	namespace {
+		void AssertTryParseValueFailure(const consumer<std::string&>& mutate) {
+			// Arrange:
+			auto encoded = std::string(Encoded_Address);
+			Address decoded;
+
+			mutate(encoded);
+
+			// Act:
+			auto result = TryParseValue(encoded, decoded);
+
+			// Assert:
+			EXPECT_FALSE(result) << encoded;
+			EXPECT_EQ(Address(), decoded) << encoded;
+		}
+	}
+
+	TEST(TEST_CLASS, TryParseValueReturnsFalseForInvalidEncodedAddress) {
+		// Arrange: corrupt checksum
+		AssertTryParseValueFailure([](auto& encoded) { ++encoded[encoded.size() / 2]; });
+
+		// - nonzero trail padding byte
+		AssertTryParseValueFailure([](auto& encoded) { ++encoded.back(); });
+	}
+
+	TEST(TEST_CLASS, TryParseValueReturnsFalseForEncodedAddressWithWrongLength) {
+		// Arrange: add additional characters to the end of a valid address
+		AssertTryParseValueFailure([](auto& encoded) { encoded += "ABC"; });
+	}
+
+	TEST(TEST_CLASS, TryParseValueReturnsFalseForEncodedStringWithLeadingOrTrailingWhiteSpace) {
+		AssertTryParseValueFailure([](auto& encoded) { encoded = "   \t    " + encoded; });
+		AssertTryParseValueFailure([](auto& encoded) { encoded = encoded + "   \t    "; });
+		AssertTryParseValueFailure([](auto& encoded) { encoded = "   \t    " + encoded + "   \t    "; });
+	}
+
+	// endregion
+}}

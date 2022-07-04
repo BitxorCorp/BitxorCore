@@ -1,0 +1,73 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#pragma once
+#include "TransactionBuilder.h"
+#include "plugins/txes/namespace/src/model/TokenAliasTransaction.h"
+
+namespace bitxorcore { namespace builders {
+
+	/// Builder for a token alias transaction.
+	class TokenAliasBuilder : public TransactionBuilder {
+	public:
+		using Transaction = model::TokenAliasTransaction;
+		using EmbeddedTransaction = model::EmbeddedTokenAliasTransaction;
+
+	public:
+		/// Creates a token alias builder for building a token alias transaction from \a signer
+		/// for the network specified by \a networkIdentifier.
+		TokenAliasBuilder(model::NetworkIdentifier networkIdentifier, const Key& signer);
+
+	public:
+		/// Sets the identifier of the namespace that will become an alias to \a namespaceId.
+		void setNamespaceId(NamespaceId namespaceId);
+
+		/// Sets the aliased token identifier to \a tokenId.
+		void setTokenId(TokenId tokenId);
+
+		/// Sets the alias action to \a aliasAction.
+		void setAliasAction(model::AliasAction aliasAction);
+
+	public:
+		/// Gets the size of token alias transaction.
+		/// \note This returns size of a normal transaction not embedded transaction.
+		size_t size() const;
+
+		/// Builds a new token alias transaction.
+		std::unique_ptr<Transaction> build() const;
+
+		/// Builds a new embedded token alias transaction.
+		std::unique_ptr<EmbeddedTransaction> buildEmbedded() const;
+
+	private:
+		template<typename TTransaction>
+		size_t sizeImpl() const;
+
+		template<typename TTransaction>
+		std::unique_ptr<TTransaction> buildImpl() const;
+
+	private:
+		NamespaceId m_namespaceId;
+		TokenId m_tokenId;
+		model::AliasAction m_aliasAction;
+	};
+}}

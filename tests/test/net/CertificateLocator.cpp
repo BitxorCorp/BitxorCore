@@ -1,0 +1,63 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#include "CertificateLocator.h"
+#include "bitxorcore/io/RawFile.h"
+#include "bitxorcore/exceptions.h"
+#include "tests/test/crypto/CertificateTestUtils.h"
+#include "tests/test/nodeps/KeyTestUtils.h"
+#include <filesystem>
+
+namespace bitxorcore { namespace test {
+
+	namespace {
+		void SaveToFile(const std::string& certDirectory, const std::string& filename, const std::string& buffer) {
+			io::RawFile dataFile((std::filesystem::path(certDirectory) / filename).generic_string(), io::OpenMode::Read_Write);
+			dataFile.write({ reinterpret_cast<const uint8_t*>(buffer.data()), buffer.size() });
+		}
+
+		void SavePemCertificate(const PemCertificate& pemCertificate, const std::string& certificateDirectory) {
+			SaveToFile(certificateDirectory, "ca.pubkey.pem", pemCertificate.caPublicKeyString());
+			SaveToFile(certificateDirectory, "node.key.pem", pemCertificate.nodePrivateKeyString());
+			SaveToFile(certificateDirectory, "node.full.crt.pem", pemCertificate.certificateChainString());
+		}
+	}
+
+	std::string GetDefaultCertificateDirectory() {
+		auto certificateDirectory = "./cert";
+		if (!std::filesystem::exists(certificateDirectory))
+			GenerateCertificateDirectory(certificateDirectory);
+
+		return certificateDirectory;
+	}
+
+	void GenerateCertificateDirectory(const std::string& certificateDirectory) {
+		GenerateCertificateDirectory(certificateDirectory, PemCertificate());
+	}
+
+	void GenerateCertificateDirectory(const std::string& certificateDirectory, const PemCertificate& pemCertificate) {
+		BITXORCORE_LOG(info) << "generating new certificate directory: " << certificateDirectory;
+		std::filesystem::create_directories(certificateDirectory);
+
+		SavePemCertificate(pemCertificate, certificateDirectory);
+	}
+}}

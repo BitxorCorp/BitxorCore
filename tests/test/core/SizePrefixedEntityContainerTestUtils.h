@@ -1,0 +1,60 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#pragma once
+#include "bitxorcore/model/ContiguousEntityContainer.h"
+#include <type_traits>
+
+namespace bitxorcore { namespace test {
+
+	/// Gets the number of entities in \a container.
+	template<typename TEntity>
+	size_t CountContainerEntities(model::BasicContiguousEntityContainer<TEntity>&& container) {
+		size_t count = 0;
+		for (auto iter = container.begin(); container.end() != iter; ++iter)
+			++count;
+
+		return count;
+	}
+
+	/// Traits for accessing a source via a const reference.
+	template<typename TSource>
+	struct ConstTraitsT {
+		using SourceType = std::add_const_t<TSource>;
+
+		/// Gets a const reference to \a source.
+		static SourceType& GetAccessor(SourceType& source) {
+			return source;
+		}
+	};
+
+	/// Traits for accessing a source via a non-const reference.
+	template<typename TSource>
+	struct NonConstTraitsT {
+		using SourceType = std::remove_const_t<TSource>;
+
+		/// Gets a non-const reference to \a source.
+		static SourceType& GetAccessor(SourceType& source) {
+			return source;
+		}
+	};
+}}

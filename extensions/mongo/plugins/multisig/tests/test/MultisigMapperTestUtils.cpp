@@ -1,0 +1,52 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#include "MultisigMapperTestUtils.h"
+#include "mongo/src/mappers/MapperUtils.h"
+#include "mongo/tests/test/MapperTestUtils.h"
+#include "tests/TestHarness.h"
+
+namespace bitxorcore { namespace test {
+
+	namespace {
+		void AssertAddressSet(const state::SortedAddressSet& addresses, const bsoncxx::document::view& dbAddresses) {
+			ASSERT_EQ(addresses.size(), test::GetFieldCount(dbAddresses));
+
+			for (auto dbIter = dbAddresses.cbegin(); dbAddresses.cend() != dbIter; ++dbIter) {
+				auto address = test::GetByteArrayFromMongoSource<Address>(*dbIter);
+				EXPECT_CONTAINS(addresses, address);
+			}
+		}
+	}
+
+	void AssertEqualMultisigData(const state::MultisigEntry& entry, const bsoncxx::document::view& dbMultisig) {
+		EXPECT_EQ(6u, GetFieldCount(dbMultisig));
+		EXPECT_EQ(1u, GetUint32(dbMultisig, "version"));
+
+		EXPECT_EQ(entry.address(), GetAddressValue(dbMultisig, "accountAddress"));
+		EXPECT_EQ(entry.minApproval(), GetUint32(dbMultisig, "minApproval"));
+		EXPECT_EQ(entry.minRemoval(), GetUint32(dbMultisig, "minRemoval"));
+
+		AssertAddressSet(entry.cosignatoryAddresses(), dbMultisig["cosignatoryAddresses"].get_array().value);
+		AssertAddressSet(entry.multisigAddresses(), dbMultisig["multisigAddresses"].get_array().value);
+	}
+}}

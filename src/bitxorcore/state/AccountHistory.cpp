@@ -1,0 +1,69 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#include "AccountHistory.h"
+#include <algorithm>
+
+namespace bitxorcore { namespace state {
+
+	const HeightIndexedHistoryMap<Amount>& AccountHistory::balance() const {
+		return m_heightBalanceMap;
+	}
+
+	const HeightIndexedHistoryMap<Key>& AccountHistory::vrfPublicKey() const {
+		return m_heightVrfPublicKeyMap;
+	}
+
+	const HeightIndexedHistoryMap<std::vector<model::PinnedVotingKey>>& AccountHistory::votingPublicKeys() const {
+		return m_heightVotingPublicKeysMap;
+	}
+
+	bool AccountHistory::anyAtLeast(Amount minAmount) const {
+		return m_heightBalanceMap.anyOf([minAmount](auto amount) {
+			return minAmount <= amount;
+		});
+	}
+
+	void AccountHistory::add(Height height, Amount balance) {
+		m_heightBalanceMap.add(height, balance);
+	}
+
+	void AccountHistory::add(Height height, const Key& vrfPublicKey) {
+		m_heightVrfPublicKeyMap.add(height, vrfPublicKey);
+	}
+
+	void AccountHistory::add(Height height, const std::vector<model::PinnedVotingKey>& votingPublicKeys) {
+		m_heightVotingPublicKeysMap.add(height, votingPublicKeys);
+	}
+
+	void AccountHistory::pruneLess(Height height) {
+		m_heightBalanceMap.pruneLess(height);
+		m_heightVrfPublicKeyMap.pruneLess(height);
+		m_heightVotingPublicKeysMap.pruneLess(height);
+	}
+
+	void AccountHistory::pruneGreater(Height height) {
+		m_heightBalanceMap.pruneGreater(height);
+		m_heightVrfPublicKeyMap.pruneGreater(height);
+		m_heightVotingPublicKeysMap.pruneGreater(height);
+	}
+}}

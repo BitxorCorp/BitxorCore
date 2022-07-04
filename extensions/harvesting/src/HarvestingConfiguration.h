@@ -1,0 +1,70 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#pragma once
+#include "DelegatePrioritizationPolicy.h"
+#include <filesystem>
+#include <string>
+
+namespace bitxorcore { namespace utils { class ConfigurationBag; } }
+
+namespace bitxorcore { namespace harvesting {
+
+	/// Harvesting configuration settings.
+	struct HarvestingConfiguration {
+	public:
+		/// Harvester signing private key. Used only when harvesting is enabled.
+		std::string HarvesterSigningPrivateKey;
+
+		/// Harvester VRF private key. Used only when harvesting is enabled.
+		std::string HarvesterVrfPrivateKey;
+
+		/// Enables harvesting using configured harvester keys when \c true.
+		bool EnableAutoHarvesting;
+
+		/// Maximum number of unlocked accounts, i.e., the maximum number of
+		/// delegated harvesting accounts.
+		uint32_t MaxUnlockedAccounts;
+
+		/// Prioritization policy used to keep accounts once the maximum number of
+		/// delegated harvesting accounts is reached. Possible values are \c Age
+		/// and \c Importance.
+		harvesting::DelegatePrioritizationPolicy DelegatePrioritizationPolicy;
+
+		/// Address of the account receiving part of the harvested fee.
+		Address BeneficiaryAddress;
+
+	private:
+		HarvestingConfiguration() = default;
+
+	public:
+		/// Creates an uninitialized harvesting configuration.
+		static HarvestingConfiguration Uninitialized();
+
+	public:
+		/// Loads a harvesting configuration from \a bag.
+		static HarvestingConfiguration LoadFromBag(const utils::ConfigurationBag& bag);
+
+		/// Loads a harvesting configuration from \a resourcesPath.
+		static HarvestingConfiguration LoadFromPath(const std::filesystem::path& resourcesPath);
+	};
+}}

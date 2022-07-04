@@ -1,0 +1,51 @@
+cmake_minimum_required(VERSION 3.14)
+
+include_directories(.)
+include_directories(${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src)
+
+function(bitxorcore_define_extension_no_group EXTENSION_NAME)
+	add_subdirectory(src)
+	bitxorcore_add_tests_subdirectory(tests)
+
+	bitxorcore_shared_library_target(extension.${EXTENSION_NAME})
+	target_link_libraries(extension.${EXTENSION_NAME} bitxorcore.${EXTENSION_NAME})
+	set_property(TARGET extension.${EXTENSION_NAME} PROPERTY FOLDER "extensions")
+endfunction()
+
+function(bitxorcore_define_extension EXTENSION_NAME)
+	bitxorcore_define_extension_no_group(${EXTENSION_NAME})
+	add_dependencies(extensions extension.${EXTENSION_NAME})
+endfunction()
+
+function(bitxorcore_define_extension_src EXTENSION_NAME)
+	bitxorcore_library_target(bitxorcore.${EXTENSION_NAME} ${ARGN})
+	target_link_libraries(bitxorcore.${EXTENSION_NAME} bitxorcore.extensions bitxorcore.handlers bitxorcore.net)
+	set_property(TARGET bitxorcore.${EXTENSION_NAME} PROPERTY FOLDER "extensions")
+endfunction()
+
+function(bitxorcore_define_extension_test EXTENSION_NAME)
+	bitxorcore_test_executable_target(tests.bitxorcore.${EXTENSION_NAME} local ${ARGN})
+	set_property(TARGET tests.bitxorcore.${EXTENSION_NAME} PROPERTY FOLDER "extensions")
+
+	# need to promote custom test compiler flags to parent scope
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}" PARENT_SCOPE)
+endfunction()
+
+add_subdirectory(addressextraction)
+add_subdirectory(diagnostics)
+add_subdirectory(filespooling)
+add_subdirectory(finalization)
+add_subdirectory(harvesting)
+add_subdirectory(hashcache)
+add_subdirectory(mongo)
+add_subdirectory(networkheight)
+add_subdirectory(nodediscovery)
+add_subdirectory(packetserver)
+add_subdirectory(partialtransaction)
+add_subdirectory(pluginhandlers)
+add_subdirectory(sync)
+add_subdirectory(syncsource)
+add_subdirectory(timesync)
+add_subdirectory(transactionsink)
+add_subdirectory(unbondedpruning)
+add_subdirectory(zeromq)

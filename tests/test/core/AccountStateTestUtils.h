@@ -1,0 +1,57 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#pragma once
+#include "bitxorcore/state/AccountState.h"
+#include <vector>
+
+namespace bitxorcore { namespace test {
+
+	/// Account states collection.
+	using AccountStates = std::vector<std::shared_ptr<state::AccountState>>;
+
+	/// Fill \a accountState with pseudo-random importances and \a numTokens tokens.
+	void RandomFillAccountData(uint64_t seed, state::AccountState& accountState, size_t numTokens = 10);
+
+	/// Asserts that account state \a actual is equal to \a expected with optional \a message.
+	void AssertEqual(const state::AccountState& expected, const state::AccountState& actual, const std::string& message = "");
+
+	/// Creates an account state at \a height.
+	/// \note The account state has no valid public key.
+	std::shared_ptr<state::AccountState> CreateAccountStateWithoutPublicKey(uint64_t height);
+
+	/// Creates \a count account states with successive public keys starting at \c 1.
+	AccountStates CreateAccountStates(size_t count);
+
+	/// Sets all supplemental public keys specified in \a mask to random values in \a accountState and adds \a numVotingKeys
+	/// random voting keys.
+	void SetRandomSupplementalPublicKeys(state::AccountState& accountState, state::AccountPublicKeys::KeyType mask, uint8_t numVotingKeys);
+
+	/// Forcibly clears and sets linked public key in \a accountState to \a linkedPublicKey.
+	void ForceSetLinkedPublicKey(state::AccountState& accountState, const Key& linkedPublicKey);
+
+	/// Gets the heights of all \a snapshots.
+	std::vector<Height::ValueType> GetSnapshotHeights(const state::AccountImportanceSnapshots& snapshots);
+
+	/// Gets the heights of all \a buckets.
+	std::vector<Height::ValueType> GetBucketHeights(const state::AccountActivityBuckets& buckets);
+}}

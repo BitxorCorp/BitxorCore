@@ -1,0 +1,70 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#pragma once
+#include "bitxorcore/types.h"
+
+namespace bitxorcore { namespace model {
+
+#pragma pack(push, 1)
+
+	/// Finalization round composed of an epoch and point.
+	struct FinalizationRound {
+	public:
+		/// Finalization epoch.
+		FinalizationEpoch Epoch;
+
+		/// Finalization point.
+		FinalizationPoint Point;
+
+	public:
+		/// Returns \c true if this round is equal to \a rhs.
+		bool operator==(const FinalizationRound& rhs) const;
+
+		/// Returns \c true if this round is not equal to \a rhs.
+		bool operator!=(const FinalizationRound& rhs) const;
+
+		/// Returns \c true if this round is less than \a rhs.
+		bool operator<(const FinalizationRound& rhs) const;
+
+		/// Returns \c true if this round is less than or equal to \a rhs.
+		bool operator<=(const FinalizationRound& rhs) const;
+
+		/// Returns \c true if this round is greater than \a rhs.
+		bool operator>(const FinalizationRound& rhs) const;
+
+		/// Returns \c true if this round is greater than or equal to \a rhs.
+		bool operator>=(const FinalizationRound& rhs) const;
+
+	public:
+		/// Adds \a point to this round and returns the result.
+		FinalizationRound operator+(FinalizationPoint point) const;
+
+		/// Subtracts \a point from this round and returns the result.
+		FinalizationRound operator-(FinalizationPoint point) const;
+	};
+
+#pragma pack(pop)
+
+	/// Insertion operator for outputting \a round to \a out.
+	std::ostream& operator<<(std::ostream& out, const FinalizationRound& round);
+}}

@@ -1,0 +1,105 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#include "BlockConsumers.h"
+#include "ConsumerResultFactory.h"
+#include "InputUtils.h"
+#include "bitxorcore/chain/ChainUtils.h"
+#include "bitxorcore/utils/Hashers.h"
+#include "bitxorcore/utils/TimeSpan.h"
+#include <unordered_set>
+
+namespace bitxorcore { namespace consumers {
+
+	namespace {
+		namespace {
+			bool IsLink(const model::BlockElement& previousElement, const model::Block& currentBlock) {
+				return chain::IsChainLink(previousElement.Block, previousElement.EntityHash, currentBlock);
+			}
+		}
+
+		class BlockchainCheckConsumer {
+		public:
+			BlockchainCheckConsumer(const utils::TimeSpan& maxBlockFutureTime, const chain::TimeSupplier& timeSupplier)
+					: m_maxBlockFutureTime(maxBlockFutureTime)
+					, m_timeSupplier(timeSupplier)
+			{}
+
+		public:
+			ConsumerResult operator()(const BlockElements& elements) const {
+				if (elements.empty())
+					return Abort(Failure_Consumer_Empty_Input);
+
+				if (!isChainTimestampAllowed(elements.back().Block.Timestamp))
+					return Abort(Failure_Consumer_Remote_Chain_Too_Far_In_Future);
+
+				utils::HashPointerSet hashes;
+				const model::BlockElement* pPreviousElement = nullptr;
+				const Hash256* pPreviousImportanceBlockHash = nullptr;
+				for (const auto& element : elements) {
+					// check for a valid chain link
+					if (pPreviousElement && !IsLink(*pPreviousElement, element.Block))
+						return Abort(Failure_Consumer_Remote_Chain_Improper_Link);
+
+					// check for importance link
+					if (model::IsImportanceBlock(element.Block.Type)) {
+						const auto& blockFooter = model::GetBlockFooter<model::ImportanceBlockFooter>(element.Block);
+						if (pPreviousImportanceBlockHash && *pPreviousImportanceBlockHash != blockFooter.PreviousImportanceBlockHash) {
+							BITXORCORE_LOG(warning)
+									<< "block at height " << element.Block.Height << " has PreviousImportanceBlockHash "
+									<< blockFooter.PreviousImportanceBlockHash << " but " << *pPreviousImportanceBlockHash
+									<< " is expected";
+							return Abort(Failure_Consumer_Remote_Chain_Improper_Importance_Link);
+						}
+
+						pPreviousImportanceBlockHash = &element.EntityHash;
+					}
+
+					// check for duplicate transactions
+					for (const auto& transactionElement : element.Transactions) {
+						if (!hashes.insert(&transactionElement.EntityHash).second)
+							return Abort(Failure_Consumer_Remote_Chain_Duplicate_Transactions);
+					}
+
+					pPreviousElement = &element;
+				}
+
+				return Continue();
+			}
+
+		private:
+			bool isChainTimestampAllowed(Timestamp chainTimestamp) const {
+				return chainTimestamp <= m_timeSupplier() + m_maxBlockFutureTime;
+			}
+
+		private:
+			utils::TimeSpan m_maxBlockFutureTime;
+			chain::TimeSupplier m_timeSupplier;
+		};
+	}
+
+	disruptor::ConstBlockConsumer CreateBlockchainCheckConsumer(
+			const utils::TimeSpan& maxBlockFutureTime,
+			const chain::TimeSupplier& timeSupplier) {
+		return BlockchainCheckConsumer(maxBlockFutureTime, timeSupplier);
+	}
+}}

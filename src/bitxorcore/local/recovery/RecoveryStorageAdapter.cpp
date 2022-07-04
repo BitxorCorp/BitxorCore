@@ -1,0 +1,71 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#include "RecoveryStorageAdapter.h"
+
+namespace bitxorcore { namespace local {
+
+	namespace {
+		struct ReadOnlyStorageAdapter : public io::BlockStorage {
+		public:
+			explicit ReadOnlyStorageAdapter(const io::BlockStorage& storage) : m_storage(storage)
+			{}
+
+		public:
+			Height chainHeight() const override {
+				return m_storage.chainHeight();
+			}
+
+			model::HashRange loadHashesFrom(Height height, size_t maxHashes) const override {
+				return m_storage.loadHashesFrom(height, maxHashes);
+			}
+
+			void saveBlock(const model::BlockElement&) override {
+				BITXORCORE_THROW_RUNTIME_ERROR("saveBlock unsupported in recovery storage");
+			}
+
+			void dropBlocksAfter(Height) override {
+				BITXORCORE_THROW_RUNTIME_ERROR("dropBlocksAfter unsupported in recovery storage");
+			}
+
+		public:
+			std::shared_ptr<const model::Block> loadBlock(Height height) const override {
+				return m_storage.loadBlock(height);
+			}
+
+			std::shared_ptr<const model::BlockElement> loadBlockElement(Height height) const override {
+				return m_storage.loadBlockElement(height);
+			}
+
+			std::pair<std::vector<uint8_t>, bool> loadBlockStatementData(Height height) const override {
+				return m_storage.loadBlockStatementData(height);
+			}
+
+		private:
+			const io::BlockStorage& m_storage;
+		};
+	}
+
+	std::unique_ptr<io::BlockStorage> CreateReadOnlyStorageAdapter(const io::BlockStorage& storage) {
+		return std::make_unique<ReadOnlyStorageAdapter>(storage);
+	}
+}}

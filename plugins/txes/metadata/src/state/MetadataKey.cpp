@@ -1,0 +1,152 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#include "MetadataKey.h"
+#include "bitxorcore/crypto/Hashes.h"
+#include "bitxorcore/model/ResolverContext.h"
+#include "bitxorcore/utils/Casting.h"
+#include "bitxorcore/exceptions.h"
+
+namespace bitxorcore { namespace state {
+
+	MetadataKey::MetadataKey(const model::PartialMetadataKey& partialKey)
+			: m_partialKey(partialKey)
+			, m_targetId(0)
+			, m_metadataType(model::MetadataType::Account)
+			, m_uniqueKey(generateUniqueKey())
+	{}
+
+	MetadataKey::MetadataKey(const model::PartialMetadataKey& partialKey, TokenId tokenId)
+			: m_partialKey(partialKey)
+			, m_targetId(tokenId.unwrap())
+			, m_metadataType(model::MetadataType::Token)
+			, m_uniqueKey(generateUniqueKey())
+	{}
+
+	MetadataKey::MetadataKey(const model::PartialMetadataKey& partialKey, NamespaceId namespaceId)
+			: m_partialKey(partialKey)
+			, m_targetId(namespaceId.unwrap())
+			, m_metadataType(model::MetadataType::Namespace)
+			, m_uniqueKey(generateUniqueKey())
+	{}
+
+	const Hash256& MetadataKey::uniqueKey() const {
+		return m_uniqueKey;
+	}
+
+	const Address& MetadataKey::sourceAddress() const {
+		return m_partialKey.SourceAddress;
+	}
+
+	const Address& MetadataKey::targetAddress() const {
+		return m_partialKey.TargetAddress;
+	}
+
+	uint64_t MetadataKey::scopedMetadataKey() const {
+		return m_partialKey.ScopedMetadataKey;
+	}
+
+	uint64_t MetadataKey::targetId() const {
+		return m_targetId;
+	}
+
+	model::MetadataType MetadataKey::metadataType() const {
+		return m_metadataType;
+	}
+
+	TokenId MetadataKey::tokenTarget() const {
+		require(model::MetadataType::Token, "tokenTarget");
+		return TokenId(m_targetId);
+	}
+
+	NamespaceId MetadataKey::namespaceTarget() const {
+		require(model::MetadataType::Namespace, "namespaceTarget");
+		return NamespaceId(m_targetId);
+	}
+
+	void MetadataKey::require(model::MetadataType metadataType, const char* name) const {
+		if (m_metadataType == metadataType)
+			return;
+
+		std::ostringstream out;
+		out
+				<< "function \"" << name << "\" requires metadata type " << static_cast<uint16_t>(metadataType)
+				<< " but was " << static_cast<uint16_t>(m_metadataType);
+		BITXORCORE_THROW_INVALID_ARGUMENT(out.str().c_str());
+	}
+
+	Hash256 MetadataKey::generateUniqueKey() const {
+		crypto::Sha3_256_Builder builder;
+
+		for (const auto* pKey : { &m_partialKey.SourceAddress, &m_partialKey.TargetAddress })
+			builder.update(*pKey);
+
+		for (const auto value : { m_partialKey.ScopedMetadataKey, m_targetId })
+			builder.update({ reinterpret_cast<const uint8_t*>(&value), sizeof(uint64_t) });
+
+		builder.update({ reinterpret_cast<const uint8_t*>(&m_metadataType), sizeof(model::MetadataType) });
+
+		Hash256 uniqueKey;
+		builder.final(uniqueKey);
+		return uniqueKey;
+	}
+
+	namespace {
+		MetadataKey ResolveMetadataKey(
+				const model::PartialMetadataKey& partialKey,
+				const model::MetadataTarget& target,
+				const std::function<TokenId (uint64_t)>& idToTokenIdResolver) {
+			switch (target.Type) {
+			case model::MetadataType::Account:
+				return MetadataKey(partialKey);
+
+			case model::MetadataType::Token:
+				return MetadataKey(partialKey, idToTokenIdResolver(target.Id));
+
+			case model::MetadataType::Namespace:
+				return MetadataKey(partialKey, NamespaceId(target.Id));
+			}
+
+			BITXORCORE_THROW_INVALID_ARGUMENT_1("cannot resolve metadata key with unsupported type", static_cast<uint16_t>(target.Type));
+		}
+	}
+
+	MetadataKey CreateMetadataKey(const model::PartialMetadataKey& partialKey, const model::MetadataTarget& target) {
+		return ResolveMetadataKey(partialKey, target, [](auto id) {
+			return TokenId(id);
+		});
+	}
+
+	MetadataKey ResolveMetadataKey(
+			const model::UnresolvedPartialMetadataKey& partialKey,
+			const model::MetadataTarget& target,
+			const model::ResolverContext& resolvers) {
+		auto resolvedPartialKey = model::PartialMetadataKey{
+			partialKey.SourceAddress,
+			resolvers.resolve(partialKey.TargetAddress),
+			partialKey.ScopedMetadataKey
+		};
+		return ResolveMetadataKey(resolvedPartialKey, target, [&resolvers](auto id) {
+			return resolvers.resolve(UnresolvedTokenId(id));
+		});
+	}
+}}

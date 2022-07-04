@@ -1,0 +1,117 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#pragma once
+#include "finalization/src/chain/RoundContext.h"
+#include "finalization/src/chain/RoundMessageAggregator.h"
+#include "finalization/src/model/FinalizationMessage.h"
+
+namespace bitxorcore { namespace mocks {
+
+	/// Mock round message aggregator.
+	class MockRoundMessageAggregator : public chain::RoundMessageAggregator {
+	public:
+		/// Creates a mock aggregator for \a round.
+		explicit MockRoundMessageAggregator(const model::FinalizationRound& round)
+				: m_round(round)
+				, m_numAddCalls(0)
+				, m_roundContext(1000, 700)
+				, m_addResult(static_cast<chain::RoundMessageAggregatorAddResult>(-1))
+		{}
+
+	public:
+		/// Gets the finalization round.
+		model::FinalizationRound round() const {
+			return m_round;
+		}
+
+		/// Gets the round context.
+		chain::RoundContext& roundContext() {
+			return m_roundContext;
+		}
+
+		/// Gets the number of times add was called.
+		size_t numAddCalls() const {
+			return m_numAddCalls;
+		}
+
+	public:
+		/// Sets the result of shortHashes to \a shortHashes.
+		void setShortHashes(model::ShortHashRange&& shortHashes) {
+			m_shortHashes = std::move(shortHashes);
+		}
+
+		/// Sets the messages filtered by unknownMessages to \a messages.
+		void setMessages(UnknownMessages&& messages) {
+			m_messages = std::move(messages);
+		}
+
+		/// Sets the result of add to \a result.
+		void setAddResult(chain::RoundMessageAggregatorAddResult result) {
+			m_addResult = result;
+		}
+
+	public:
+		size_t size() const override {
+			BITXORCORE_THROW_RUNTIME_ERROR("size - not supported in mock");
+		}
+
+		const model::FinalizationContext& finalizationContext() const override {
+			BITXORCORE_THROW_RUNTIME_ERROR("finalizationContext - not supported in mock");
+		}
+
+		const chain::RoundContext& roundContext() const override {
+			return m_roundContext;
+		}
+
+		model::ShortHashRange shortHashes() const override {
+			return model::ShortHashRange::CopyRange(m_shortHashes);
+		}
+
+		UnknownMessages unknownMessages(const utils::ShortHashesSet& knownShortHashes) const override {
+			UnknownMessages filteredMessages;
+			for (const auto& pMessage : m_messages) {
+				auto shortHash = utils::ToShortHash(model::CalculateMessageHash(*pMessage));
+				if (knownShortHashes.cend() == knownShortHashes.find(shortHash))
+					filteredMessages.push_back(pMessage);
+			}
+
+			return filteredMessages;
+		}
+
+	public:
+		chain::RoundMessageAggregatorAddResult add(const std::shared_ptr<model::FinalizationMessage>&) override {
+			++m_numAddCalls;
+			return m_addResult;
+		}
+
+	private:
+		model::FinalizationRound m_round;
+		Height m_height;
+		size_t m_numAddCalls;
+		chain::RoundContext m_roundContext;
+
+		model::ShortHashRange m_shortHashes;
+		UnknownMessages m_messages;
+		chain::RoundMessageAggregatorAddResult m_addResult;
+	};
+}}
