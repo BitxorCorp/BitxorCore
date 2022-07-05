@@ -39,7 +39,7 @@ namespace bitxorcore { namespace validators {
 			return !IsEternal(notification.Duration) && !isInRange
 					? Failure_Namespace_Invalid_Duration
 					: ValidationResult::Success; */
-			auto isInRange = minDuration <= notification.Duration;
+			auto isInRange = notification.Duration <= Eternal_Artifact_Duration;
 			return !isInRange
 					? Failure_Namespace_Invalid_Duration
 					: ValidationResult::Success;
