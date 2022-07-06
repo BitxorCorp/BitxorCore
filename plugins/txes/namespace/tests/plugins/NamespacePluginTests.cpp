@@ -49,6 +49,10 @@ namespace bitxorcore { namespace plugins {
 						{ "maxNameSize", "0" },
 						{ "maxChildNamespaces", "0" },
 						{ "maxNamespaceDepth", "0" },
+						{ "unlinkTokenAliasRentalFee", "500" },
+						{ "isoCodeNamespaceRentalFee", "500" },
+						{ "rootNamespaceEternalFee", "500" },
+
 
 						{ "minNamespaceDuration", "0h" },
 						{ "maxNamespaceDuration", "0h" },

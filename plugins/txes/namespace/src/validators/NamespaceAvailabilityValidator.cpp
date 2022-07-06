@@ -47,8 +47,8 @@ namespace bitxorcore { namespace validators {
 			return ValidationResult::Success;
 
 		const auto& root = namespaceIter.get().root();
-		/* if (IsEternal(root.lifetime()) || Eternal_Artifact_Duration == notification.Duration)
-			return Failure_Namespace_Invalid_Duration; */
+		if (IsEternal(root.lifetime()))
+			return Failure_Namespace_Invalid_Duration;
 
 		// if grace period after expiration has passed, any signer can claim the namespace
 		if (!root.lifetime().isActive(height))

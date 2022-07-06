@@ -67,7 +67,7 @@ namespace bitxorcore { namespace model {
 	}
 
 	TEST(TEST_CLASS, NameIsValidWhenItContainsSeparator) {
-		for (const auto& name : { "al-ce", "al_ce", "alice-", "alice_" })
+		for (const auto& name : { "al-ce", "alice-" })
 			EXPECT_TRUE(IsValidName(name));
 	}
 
