@@ -114,6 +114,9 @@ namespace bitxorcore { namespace plugins {
 
 		// Act + Assert:
 		test::TransactionPluginTestUtils<TTraits>::AssertNotificationTypes(transaction, {
+			AccountAddressNotification::Notification_Type,
+			BalanceTransferNotification::Notification_Type,
+			NamespaceUnlinkAliasFeeNotification::Notification_Type,
 			NamespaceRequiredNotification::Notification_Type,
 			AliasLinkNotification::Notification_Type,
 			AliasedTokenIdNotification::Notification_Type

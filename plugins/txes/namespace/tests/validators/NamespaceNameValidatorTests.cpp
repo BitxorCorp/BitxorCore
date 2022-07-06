@@ -99,12 +99,12 @@ namespace bitxorcore { namespace validators {
 	}
 
 	TEST(TEST_CLASS, SuccessWhenValidatingValidNamespaceNames) {
-		for (const auto& name : { "a", "be", "cat", "doom", "al-ce", "al_ce", "alice-", "alice_" })
+		for (const auto& name : { "a", "be", "cat", "doom", "al-ce", "alice-" })
 			AssertNameValidationResult(ValidationResult::Success, name);
 	}
 
 	TEST(TEST_CLASS, FailureWhenValidatingInvalidNamespaceNames) {
-		for (const auto& name : { "-alice", "_alice", "al.ce", "alIce", "al ce", "al@ce", "al#ce", "!@#$%" })
+		for (const auto& name : { "-alice", "_alice", "al.ce", "al_ce", "alIce", "al ce", "al@ce", "al#ce", "!@#$%" })
 			AssertNameValidationResult(Failure_Namespace_Invalid_Name, name);
 	}
 

@@ -46,7 +46,7 @@ namespace bitxorcore { namespace plugins {
 			sinkAddress.trySet(test::GenerateRandomByteArray<Address>(), Height(1111));
 			sinkAddress.trySet(test::GenerateRandomByteArray<Address>(), Height(2222));
 
-			return { UnresolvedTokenId(1234), sinkAddress, rootFeePerBlock, childFee, test::GenerateRandomByteArray<Key>(), BlockDuration(100), Amount(100) };
+			return { UnresolvedTokenId(1234), sinkAddress, rootFeePerBlock, childFee, test::GenerateRandomByteArray<Key>(), BlockDuration(100), Amount(50) };
 		}
 
 		template<typename TTraits>
@@ -128,10 +128,10 @@ namespace bitxorcore { namespace plugins {
 		}
 
 		template<typename TTransaction>
-		void PrepareRootNamespaceFiniteDurationTransaction(TTransaction& transaction) {
+		void PrepareRootNamespaceFiniteDurationTransaction(TTransaction& transaction, BlockDuration duration ) {
 			test::FillWithRandomData(transaction);
 			transaction.RegistrationType = NamespaceRegistrationType::Root;
-			transaction.Duration = BlockDuration(test::Random() | 1);
+			transaction.Duration = duration;
 			transaction.NameSize = 11;
 		}
 	}
@@ -141,7 +141,7 @@ namespace bitxorcore { namespace plugins {
 		auto config = CreateRentalFeeConfiguration(Amount(987), Amount(777));
 
 		auto pTransaction = CreateTransactionWithName<TTraits>(11);
-		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction);
+		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction, BlockDuration(test::Random() | 1));
 		pTransaction->SignerPublicKey = config.GenesisSignerPublicKey;
 
 		// Act + Assert:
@@ -158,7 +158,7 @@ namespace bitxorcore { namespace plugins {
 		auto config = CreateRentalFeeConfiguration(Amount(987), Amount(777));
 
 		auto pTransaction = CreateTransactionWithName<TTraits>(11);
-		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction);
+		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction, BlockDuration(test::Random() | 1));
 		pTransaction->SignerPublicKey = config.GenesisSignerPublicKey;
 
 		typename test::TransactionPluginTestUtils<TTraits>::PublishTestBuilder builder;
@@ -177,7 +177,7 @@ namespace bitxorcore { namespace plugins {
 		auto config = CreateRentalFeeConfiguration(Amount(987), Amount(777));
 
 		auto pTransaction = CreateTransactionWithName<TTraits>(11);
-		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction);
+		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction, BlockDuration(test::Random() | 1));
 
 		// Act + Assert:
 		test::TransactionPluginTestUtils<TTraits>::AssertNotificationTypes(*pTransaction, {
@@ -195,7 +195,7 @@ namespace bitxorcore { namespace plugins {
 		auto config = CreateRentalFeeConfiguration(Amount(987), Amount(777));
 
 		auto pTransaction = CreateTransactionWithName<TTraits>(11);
-		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction);
+		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction, BlockDuration(100));
 
 		const auto& transaction = *pTransaction;
 		typename test::TransactionPluginTestUtils<TTraits>::PublishTestBuilder builder;
@@ -233,12 +233,14 @@ namespace bitxorcore { namespace plugins {
 		auto config = CreateRentalFeeConfiguration(Amount(987), Amount(777));
 
 		auto pTransaction = CreateTransactionWithName<TTraits>(11);
-		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction);
+		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction, BlockDuration(test::Random() | 1));
 		pTransaction->Duration = BlockDuration();
 
 		// Act + Assert:
 		test::TransactionPluginTestUtils<TTraits>::AssertNotificationTypes(*pTransaction, {
 			AccountAddressNotification::Notification_Type,
+			BalanceTransferNotification::Notification_Type,
+			NamespaceRentalFeeNotification::Notification_Type,
 			NamespaceRegistrationNotification::Notification_Type,
 			RootNamespaceNotification::Notification_Type,
 			NamespaceNameNotification::Notification_Type
@@ -250,15 +252,69 @@ namespace bitxorcore { namespace plugins {
 		auto config = CreateRentalFeeConfiguration(Amount(987), Amount(777));
 
 		auto pTransaction = CreateTransactionWithName<TTraits>(11);
-		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction);
-		pTransaction->Duration = BlockDuration();
+		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction, Eternal_Artifact_Duration);
 
+		const auto& transaction = *pTransaction;
 		typename test::TransactionPluginTestUtils<TTraits>::PublishTestBuilder builder;
-		AddCommonRootExpectations<TTraits>(builder, config, *pTransaction);
+		AddCommonRootExpectations<TTraits>(builder, config, transaction);
+		builder.template addExpectation<BalanceTransferNotification>([&config, &transaction](const auto& notification) {
+			EXPECT_TRUE(notification.Sender.isResolved());
+			EXPECT_TRUE(notification.Recipient.isResolved());
+
+			EXPECT_EQ(GetSignerAddress(transaction), notification.Sender.resolved());
+			EXPECT_EQ(config.SinkAddress.get(Run_Test_Height), notification.Recipient.resolved());
+			EXPECT_EQ(config.CurrencyTokenId, notification.TokenId);
+			EXPECT_EQ(config.EternalRentalFee, notification.Amount);
+			EXPECT_EQ(BalanceTransferNotification::AmountType::Dynamic, notification.TransferAmountType);
+		});
+		builder.template addExpectation<NamespaceRentalFeeNotification>([&config, &transaction](const auto& notification) {
+			EXPECT_TRUE(notification.Sender.isResolved());
+			EXPECT_TRUE(notification.Recipient.isResolved());
+
+			EXPECT_EQ(GetSignerAddress(transaction), notification.Sender.resolved());
+			EXPECT_EQ(config.SinkAddress.get(Run_Test_Height), notification.Recipient.resolved());
+			EXPECT_EQ(config.CurrencyTokenId, notification.TokenId);
+			EXPECT_EQ(config.EternalRentalFee, notification.Amount);
+		});
 
 		// Act + Assert:
-		RunTest(builder, *pTransaction, config);
+		RunTest(builder, transaction, config);
 	}
+
+	PLUGIN_TEST(CanPublishAllNotificationsWhenNotGenesisRootRegistrationWithGreaterEternalDuration) {
+		// Arrange:
+		auto config = CreateRentalFeeConfiguration(Amount(987), Amount(777));
+
+		auto pTransaction = CreateTransactionWithName<TTraits>(11);
+		PrepareRootNamespaceFiniteDurationTransaction(*pTransaction, BlockDuration(test::Random() | 1));
+
+		const auto& transaction = *pTransaction;
+		typename test::TransactionPluginTestUtils<TTraits>::PublishTestBuilder builder;
+		AddCommonRootExpectations<TTraits>(builder, config, transaction);
+		builder.template addExpectation<BalanceTransferNotification>([&config, &transaction](const auto& notification) {
+			EXPECT_TRUE(notification.Sender.isResolved());
+			EXPECT_TRUE(notification.Recipient.isResolved());
+
+			EXPECT_EQ(GetSignerAddress(transaction), notification.Sender.resolved());
+			EXPECT_EQ(config.SinkAddress.get(Run_Test_Height), notification.Recipient.resolved());
+			EXPECT_EQ(config.CurrencyTokenId, notification.TokenId);
+			EXPECT_EQ(config.EternalRentalFee, notification.Amount);
+			EXPECT_EQ(BalanceTransferNotification::AmountType::Dynamic, notification.TransferAmountType);
+		});
+		builder.template addExpectation<NamespaceRentalFeeNotification>([&config, &transaction](const auto& notification) {
+			EXPECT_TRUE(notification.Sender.isResolved());
+			EXPECT_TRUE(notification.Recipient.isResolved());
+
+			EXPECT_EQ(GetSignerAddress(transaction), notification.Sender.resolved());
+			EXPECT_EQ(config.SinkAddress.get(Run_Test_Height), notification.Recipient.resolved());
+			EXPECT_EQ(config.CurrencyTokenId, notification.TokenId);
+			EXPECT_EQ(config.EternalRentalFee, notification.Amount);
+		});
+
+		// Act + Assert:
+		RunTest(builder, transaction, config);
+	}
+
 
 	// endregion
 

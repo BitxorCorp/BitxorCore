@@ -38,11 +38,11 @@ namespace bitxorcore { namespace validators {
 			static constexpr auto CreateValidator = CreateNamespaceRegistrationTypeValidator;
 
 			static std::vector<uint8_t> ValidValues() {
-				return { 0x00, 0x01 };
+				return { 0x00, 0x02 };
 			}
 
 			static std::vector<uint8_t> InvalidValues() {
-				return { 0x02, 0xFF };
+				return { 0x03, 0xFF };
 			}
 
 			static auto CreateNotification(EnumType value) {

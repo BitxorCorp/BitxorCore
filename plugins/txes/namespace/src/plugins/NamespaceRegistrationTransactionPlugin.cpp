@@ -77,7 +77,11 @@ namespace bitxorcore { namespace plugins {
 				auto parentId = Namespace_Base_Id;
 				if (transaction.IsRootRegistration()) {
 					using Notification = RootNamespaceNotification;
-					sub.notify(Notification(context.SignerAddress, transaction.Id, transaction.Duration));
+					if(transaction.Duration > config.MaxBlockDuration)
+					{sub.notify(Notification(context.SignerAddress, transaction.Id, Eternal_Artifact_Duration));}
+					else
+					{sub.notify(Notification(context.SignerAddress, transaction.Id, transaction.Duration));}
+					
 				} 
 				else if (transaction.IsIsoCodeRegistration()) {
 					using Notification = IsoCodeNamespaceNotification;

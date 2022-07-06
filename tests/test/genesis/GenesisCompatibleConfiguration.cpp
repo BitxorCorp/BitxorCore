@@ -54,6 +54,10 @@ namespace bitxorcore { namespace test {
 				{ "maxNameSize", "64" },
 				{ "maxChildNamespaces", "100" },
 				{ "maxNamespaceDepth", "3" },
+				{ "unlinkTokenAliasRentalFee", "500" },
+				{ "isoCodeNamespaceRentalFee", "500" },
+				{ "rootNamespaceEternalFee", "500" },
+
 
 				{ "minNamespaceDuration", "1m" },
 				{ "maxNamespaceDuration", "365d" },

@@ -126,14 +126,14 @@ namespace bitxorcore { namespace validators {
 	TEST(ROOT_TEST_CLASS, CannotAddRootNamespaceWithEternalDurationAfterGenesis) {
 		// Act: try to create a root with an eternal duration
 		auto notification = model::RootNamespaceNotification(Address(), NamespaceId(26), Eternal_Artifact_Duration);
-		RunRootTest(Failure_Namespace_Eternal_After_Genesis_Block, notification, Height(15), SeedCacheWithRoot25);
+		RunRootTest(ValidationResult::Success, notification, Height(15), SeedCacheWithRoot25);
 	}
 
 	TEST(ROOT_TEST_CLASS, CannotRenewNonEternalRootNamespaceWithEternalDurationAfterGenesis) {
 		// Act: try to renew a root with an eternal duration
 		auto owner = test::CreateRandomOwner();
 		auto notification = model::RootNamespaceNotification(owner, NamespaceId(25), Eternal_Artifact_Duration);
-		RunRootTest(Failure_Namespace_Eternal_After_Genesis_Block, notification, Height(15), SeedCacheWithRoot25Owner(owner));
+		RunRootTest(ValidationResult::Success, notification, Height(15), SeedCacheWithRoot25Owner(owner));
 	}
 
 	// endregion
@@ -215,10 +215,10 @@ namespace bitxorcore { namespace validators {
 		}
 	}
 
-	TEST(ROOT_TEST_CLASS, CannotRenewNonEternalRootNamespaceWithEternalDurationInGenesis) {
+	/* TEST(ROOT_TEST_CLASS, CannotRenewNonEternalRootNamespaceWithEternalDurationInGenesis) {
 		// Assert: extend a non-eternal namespace as eternal
 		AssertCannotChangeDuration(Height(1), test::CreateLifetime(10, 20), Eternal_Artifact_Duration);
-	}
+	} */
 
 	TEST(ROOT_TEST_CLASS, CannotRenewRootNamespaceWithEternalDuration) {
 		// Assert: "extend" an external namespace
