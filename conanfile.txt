@@ -1,13 +1,13 @@
 [requires]
 # release dependencies
 boost/1.76.0
-cppzmq/4.7.1
-mongo-cxx-driver/3.6.3
-openssl/1.1.1g
-rocksdb/6.20.3
-zeromq/4.3.4
+cppzmq/4.7.1@bitxor/stable
+mongo-cxx-driver/3.6.3@bitxor/stable
+openssl/1.1.1g@bitxor/stable
+rocksdb/6.20.3@bitxor/stable
+zeromq/4.3.4@bitxor/stable
 # test dependencies
-benchmark/1.5.3
+benchmark/1.5.3@bitxor/stable
 gtest/1.10.0
 
 [generators]
