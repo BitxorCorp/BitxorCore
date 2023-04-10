@@ -27,12 +27,7 @@ BitxorCore code is organized as follows:
 
 ## Versioning
 
-Versioning starting with 1.1.0.1 release. Testnet releases use odd numbers for minor field.
-
-| description | versions |
-|-------------|----------|
-| example mainnet build numbers | 1.0.0.0, 1.2.x.x, 1.4.x.x, 2.2.x.x, 3.4.x.x |
-| example testnet build numbers | 1.1.0.0, 1.3.x.x, 1.5.x.x, 2.3.x.x, 3.5.x.x |
+Versioning starting with 1.1.0.1 release.
 
 ## Building the Image
 
