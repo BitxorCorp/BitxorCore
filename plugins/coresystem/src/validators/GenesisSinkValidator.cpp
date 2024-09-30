@@ -38,8 +38,8 @@ namespace bitxorcore { namespace validators {
 				return ValidationResult::Success;
 
 			if (additionalAllowedSignaturesHeight != context.Height)
-				return ValidationResult::Success;
-				//return Failure_Core_Genesis_Account_Signed_After_Genesis_Block;
+				//return ValidationResult::Success;
+				return Failure_Core_Genesis_Account_Signed_After_Genesis_Block;
 
 			auto isExplicitlyAllowed = additionalAllowedSignatures.cend() != std::find(
 					additionalAllowedSignatures.cbegin(),
