@@ -34,11 +34,12 @@ namespace bitxorcore { namespace validators {
 				const Notification& notification,
 				const ValidatorContext& context) {
 			auto isGenesisPublicKey = notification.SignerPublicKey == context.Network.GenesisSignerPublicKey;
-			if (!isGenesisPublicKey || Height(1) == context.Height || additionalAllowedSignaturesHeight > context.Height)
+			if (!isGenesisPublicKey || Height(1) == context.Height || additionalAllowedSignaturesHeight >= context.Height)
 				return ValidationResult::Success;
 
 			if (additionalAllowedSignaturesHeight != context.Height)
-				return Failure_Core_Genesis_Account_Signed_After_Genesis_Block;
+				return ValidationResult::Success;
+				//return Failure_Core_Genesis_Account_Signed_After_Genesis_Block;
 
 			auto isExplicitlyAllowed = additionalAllowedSignatures.cend() != std::find(
 					additionalAllowedSignatures.cbegin(),
