@@ -1,0 +1,168 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#include "AdditionalTransactions.h"
+#include "GenesisConfiguration.h"
+#include "bitxorcore/io/PodIoUtils.h"
+#include "bitxorcore/io/RawFile.h"
+#include "bitxorcore/model/AggregateEntityType.h"
+#include "bitxorcore/model/AggregateNotifications.h"
+#include "bitxorcore/model/NotificationPublisher.h"
+#include "bitxorcore/model/NotificationSubscriber.h"
+#include "bitxorcore/model/TransferEntityType.h"
+#include "bitxorcore/utils/MemoryUtils.h"
+#include <filesystem>
+
+namespace bitxorcore { namespace tools { namespace bxorgen {
+
+	namespace {
+		// region AdditionalTransactionNotificationSubscriber
+
+		class AdditionalTransactionNotificationSubscriber : public model::NotificationSubscriber {
+		public:
+			AdditionalTransactionNotificationSubscriber(const GenesisConfiguration& config, std::vector<std::string>& violations)
+					: m_violations(violations)
+					, m_genesisSignerAddress(GetGenesisSignerAddress(config))
+			{}
+
+		public:
+			void notify(const model::Notification& notification) override {
+				if (model::Core_Transaction_Notification == notification.Type) {
+					using NotificationType = model::TransactionNotification;
+					checkTransactionType(static_cast<const NotificationType&>(notification).TransactionType);
+				}
+
+				if (model::Aggregate_Embedded_Transaction_Notification == notification.Type) {
+					using NotificationType = model::AggregateEmbeddedTransactionNotification;
+					checkTransactionType(static_cast<const NotificationType&>(notification).Transaction.Type);
+				}
+
+				if (model::Core_Balance_Transfer_Notification == notification.Type) {
+					using NotificationType = model::BalanceTransferNotification;
+					checkSender(static_cast<const NotificationType&>(notification).Sender.resolved());
+				}
+			}
+
+		private:
+			void checkTransactionType(model::EntityType transactionType) {
+				if (model::Entity_Type_Transfer == transactionType)
+					m_violations.push_back("Transfer is not supported as additional transaction");
+
+				if (model::Entity_Type_Aggregate_Bonded == transactionType)
+					m_violations.push_back("Aggregate_Bonded is not supported as additional transaction");
+			}
+
+			void checkSender(const Address& senderAddress) {
+				if (m_genesisSignerAddress == senderAddress)
+					m_violations.push_back("Genesis Signer cannot sign any additional transaction");
+			}
+
+		private:
+			std::vector<std::string>& m_violations;
+			Address m_genesisSignerAddress;
+		};
+
+		// endregion
+
+		// region utils
+
+		auto GetSortedPathNames(const std::string& directoryPath) {
+			std::vector<std::string> pathNames;
+
+			if (directoryPath.empty())
+				return pathNames;
+
+			auto begin = std::filesystem::directory_iterator(directoryPath);
+			auto end = std::filesystem::directory_iterator();
+			for (auto iter = begin; end != iter; ++iter) {
+				auto pathName = iter->path().generic_string();
+				pathNames.insert(std::upper_bound(pathNames.begin(), pathNames.end(), pathName), pathName);
+			}
+
+			return pathNames;
+		}
+
+		auto LoadTransaction(const std::string& filePath) {
+			io::RawFile txFile(filePath, io::OpenMode::Read_Only);
+			auto transactionSize = io::Read32(txFile);
+			auto pTransaction = utils::MakeSharedWithSize<model::Transaction>(transactionSize);
+			pTransaction->Size = transactionSize;
+			txFile.read({ reinterpret_cast<uint8_t*>(pTransaction.get()) + sizeof(uint32_t), transactionSize - sizeof(uint32_t) });
+			if (txFile.size() != txFile.position())
+				BITXORCORE_THROW_RUNTIME_ERROR_1("transaction file has invalid size", filePath);
+
+			return pTransaction;
+		}
+
+		std::vector<std::string> ValidateAdditionalTransaction(
+				const GenesisConfiguration& config,
+				const model::NotificationPublisher& notificationPublisher,
+				const model::Transaction& transaction) {
+			std::vector<std::string> violations;
+			if (Timestamp(1) != transaction.Deadline)
+				violations.push_back("genesis transactions need to have deadline set to 1");
+
+			if (Amount(0) != transaction.MaxFee)
+				violations.push_back("genesis transactions need to have max fee set to 0");
+
+			Hash256 zeroHash;
+			AdditionalTransactionNotificationSubscriber subscriber(config, violations);
+			notificationPublisher.publish({ transaction, zeroHash }, subscriber);
+			return violations;
+		}
+
+		std::string FormatViolations(const std::vector<std::string>& violations, const std::string& filePath) {
+			std::ostringstream out;
+			out << "found violations for " << filePath;
+			for (const auto& violation : violations)
+				out << std::endl << " + " << violation;
+
+			return out.str();
+		}
+
+		// endregion
+	}
+
+	model::Transactions LoadAndValidateAdditionalTransactions(
+			const GenesisConfiguration& config,
+			const model::NotificationPublisher& notificationPublisher) {
+		bool hasViolations = false;
+		model::Transactions transactions;
+		auto pathNames = GetSortedPathNames(config.TransactionsDirectory);
+		for (const auto& filePath : pathNames) {
+			auto pTransaction = LoadTransaction(filePath);
+			transactions.push_back(std::move(pTransaction));
+
+			auto violations = ValidateAdditionalTransaction(config, notificationPublisher, *transactions.back());
+			if (!violations.empty()) {
+				BITXORCORE_LOG(warning) << FormatViolations(violations, filePath);
+				hasViolations = true;
+			}
+		}
+
+		if (hasViolations)
+			BITXORCORE_THROW_RUNTIME_ERROR("one or more additional transactions failed validation");
+
+		BITXORCORE_LOG(info) << "loaded " << transactions.size() << " additional transactions";
+		return transactions;
+	}
+}}}

@@ -1,0 +1,155 @@
+/**
+*** Copyright (c) 2016-2019, Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp.
+*** Copyright (c) 2020-2021, Jaguar0625, gimre, BloodyRookie.
+*** Copyright (c) 2022-present, Kriptxor Corp, Microsula S.A.
+*** All rights reserved.
+***
+*** This file is part of BitxorCore.
+***
+*** BitxorCore is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** BitxorCore is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with BitxorCore. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#include "BlockSaver.h"
+#include "GenesisConfiguration.h"
+#include "bitxorcore/extensions/BlockExtensions.h"
+#include "bitxorcore/io/FileBlockStorage.h"
+#include "bitxorcore/io/FileProofStorage.h"
+#include "bitxorcore/io/IndexFile.h"
+#include "bitxorcore/io/PodIoUtils.h"
+#include "bitxorcore/utils/HexFormatter.h"
+#include "bitxorcore/utils/HexParser.h"
+#include <filesystem>
+
+namespace bitxorcore { namespace tools { namespace bxorgen {
+
+	namespace {
+		void CreatePlaceholderHashesFile(const std::string& binDirectory) {
+			auto blockVersionedDirectory = std::filesystem::path(binDirectory) / "00000";
+			std::filesystem::create_directories(blockVersionedDirectory);
+
+			io::RawFile hashesFile((blockVersionedDirectory / "hashes.dat").generic_string(), io::OpenMode::Read_Write);
+			hashesFile.write(Hash256());
+			hashesFile.write(Hash256());
+		}
+
+		void UpdateFileBlockStorageData(const model::BlockElement& blockElement, const std::string& binDirectory) {
+			io::FileBlockStorage storage(binDirectory, 1);
+			storage.saveBlock(blockElement);
+		}
+
+		void UpdateMemoryBlockStorageData(const model::Block& block, const std::string& cppFile, const std::string& cppFileHeader) {
+			io::RawFile cppRawFile(cppFile, io::OpenMode::Read_Write);
+
+			if (!cppFileHeader.empty()) {
+				io::RawFile cppHeaderRawFile(cppFileHeader, io::OpenMode::Read_Only);
+				std::vector<uint8_t> headerBuffer(cppHeaderRawFile.size());
+				cppHeaderRawFile.read(headerBuffer);
+				cppRawFile.write(headerBuffer);
+			}
+
+			auto header =
+					"#pragma once\n"
+					"#include <stdint.h>\n\n"
+					"namespace bitxorcore { namespace test {\n\n"
+					"\tconstexpr inline uint8_t MemoryBlockStorage_GenesisBlockData[] = {\n";
+			cppRawFile.write(RawBuffer(reinterpret_cast<const uint8_t*>(header), strlen(header)));
+
+			auto pCurrent = reinterpret_cast<const uint8_t*>(&block);
+			auto pEnd = pCurrent + block.Size;
+			std::stringstream buffer;
+			while (pEnd != pCurrent) {
+				buffer << "\t\t";
+
+				auto pLineEnd = std::min(pCurrent + 16, pEnd);
+				for (; pLineEnd != pCurrent; ++pCurrent) {
+					buffer << "0x" << utils::HexFormat(*pCurrent);
+
+					if (pCurrent + 1 != pEnd) {
+						buffer << ",";
+
+						if (pCurrent + 1 != pLineEnd)
+							buffer << " ";
+					}
+				}
+
+				buffer << "\n";
+			}
+
+			cppRawFile.write(RawBuffer(reinterpret_cast<const uint8_t*>(buffer.str().c_str()), buffer.str().size()));
+
+			auto footer = "\t};\n}}\n";
+			cppRawFile.write(RawBuffer(reinterpret_cast<const uint8_t*>(footer), strlen(footer)));
+		}
+	}
+
+	void SaveGenesisBlockElement(const model::BlockElement& blockElement, const GenesisConfiguration& config) {
+		// 1. reset the index file
+		io::IndexFile((std::filesystem::path(config.BinDirectory) / "index.dat").generic_string()).set(0);
+
+		// 2. create placeholder hashes file
+		CreatePlaceholderHashesFile(config.BinDirectory);
+
+		// 3. update the file based storage data
+		BITXORCORE_LOG(info) << "creating binary storage seed in " << config.BinDirectory;
+		UpdateFileBlockStorageData(blockElement, config.BinDirectory);
+
+		// 4. update the memory based storage data
+		if (!config.CppFile.empty()) {
+			BITXORCORE_LOG(info) << "creating cpp file " << config.CppFile;
+			UpdateMemoryBlockStorageData(blockElement.Block, config.CppFile, config.CppFileHeader);
+		}
+	}
+
+	namespace {
+		void RemoveProofIndexFile(const std::string& binDirectory) {
+			auto proofIndexFilename = std::filesystem::path(binDirectory) / "proof.index.dat";
+
+			if (std::filesystem::exists(proofIndexFilename))
+				std::filesystem::remove(proofIndexFilename);
+		}
+
+		void CreatePlaceholderHeightsFile(const std::string& binDirectory) {
+			auto blockVersionedDirectory = std::filesystem::path(binDirectory) / "00000";
+
+			io::RawFile heightsFile((blockVersionedDirectory / "proof.heights.dat").generic_string(), io::OpenMode::Read_Write);
+			io::Write64(heightsFile, 0);
+			io::Write64(heightsFile, 0);
+		}
+
+		std::unique_ptr<model::FinalizationProof> CreateGenesisProof(const Hash256& genesisEntityHash) {
+			auto pProof = std::make_unique<model::FinalizationProof>();
+			pProof->Size = sizeof(model::FinalizationProofHeader);
+			pProof->Version = model::FinalizationProofHeader::Current_Version;
+			pProof->Round = { FinalizationEpoch(1), FinalizationPoint(1) };
+			pProof->Height = Height(1);
+			pProof->Hash = genesisEntityHash;
+			return pProof;
+		}
+	}
+
+	void FinalizeGenesisBlockElement(const model::BlockElement& blockElement, const GenesisConfiguration& config) {
+		// 1. remove index file
+		RemoveProofIndexFile(config.BinDirectory);
+
+		// 2. create placeholder heights file
+		CreatePlaceholderHeightsFile(config.BinDirectory);
+
+		// 3. create proof
+		auto pGenesisProof = CreateGenesisProof(blockElement.EntityHash);
+
+		// 4. save proof
+		io::FileProofStorage proofStorage(config.BinDirectory, 1);
+		proofStorage.saveProof(*pGenesisProof);
+	}
+}}}
