@@ -34,7 +34,7 @@ namespace bitxorcore { namespace validators {
 				const Notification& notification,
 				const ValidatorContext& context) {
 			auto isGenesisPublicKey = notification.SignerPublicKey == context.Network.GenesisSignerPublicKey;
-			if (!isGenesisPublicKey || Height(1) == context.Height)
+			if (!isGenesisPublicKey || Height(1) == context.Height || additionalAllowedSignaturesHeight > context.Height)
 				return ValidationResult::Success;
 
 			if (additionalAllowedSignaturesHeight != context.Height)
